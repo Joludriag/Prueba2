@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Control Bomba | Smart Water System</title>
+    <!-- Tailwind CSS CDN (lightweight) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- mqtt.js para WebSockets -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <!-- Font Awesome 6 (free icons) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @keyframes pulse-red {
+            0%, 100% { background-color: #dc2626; opacity: 1; }
+            50% { background-color: #991b1b; opacity: 0.8; }
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .alert-pulse {
+            animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .blink-fast {
+            animation: blink 0.5s step-end infinite;
+        }
+        .toast-notify {
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased">
+
+    <!-- PANTALLA DE BLOQUEO / LOGIN MQTT -->
+    <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-blue-900 to-gray-900 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8">
+            <div class="text-center mb-6">
+                <i class="fas fa-water text-5xl text-blue-500 mb-3"></i>
+                <h1 class="text-2xl font-bold text-gray-800">Control Bomba IoT</h1>
+                <p class="text-gray-500 text-sm mt-1">Ingrese sus credenciales de HiveMQ</p>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Usuario MQTT</label>
+                    <input type="text" id="mqttUser" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="usuario_hivemq">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Contraseña MQTT</label>
+                    <input type="password" id="mqttPass" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" placeholder="********">
+                </div>
+                <button onclick="connectAndSave()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2">
+                    <i class="fas fa-plug"></i> Conectar a HiveMQ
+                </button>
+            </div>
+            <p class="text-xs text-gray-400 text-center mt-6">⚠️ Las credenciales se guardan encriptadas en su navegador</p>
+        </div>
+    </div>
+
+    <!-- DASHBOARD PRINCIPAL (oculto hasta conectar) -->
+    <div id="dashboard" class="hidden max-w-4xl mx-auto p-4 pb-20">
+        <!-- Header con zona editable -->
+        <div class="bg-white rounded-xl shadow-md p-4 mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-map-marker-alt text-blue-500"></i>
+                <input type="text" id="zonaNombre" class="border-b border-gray-300 focus:border-blue-500 outline-none px-2 py-1 text-lg font-semibold w-40" placeholder="Nombre zona" value="Sótano">
+            </div>
+            <div class="flex items-center gap-3 text-sm">
+                <span class="bg-green-100 text-green-700 px-2 py-1 rounded-full"><i class="fas fa-wifi"></i> <span id="mqttStatus">Conectando...</span></span>
+                <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded-full"><i class="far fa-clock"></i> <span id="horaESP">--:--:--</span></span>
+            </div>
+        </div>
+
+        <!-- Indicador de nivel y alertas -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="bg-white rounded-xl shadow-md p-4">
+                <div class="text-gray-500 text-sm">Nivel actual</div>
+                <div class="text-2xl font-bold" id="nivelTexto">---</div>
+                <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                    <div id="nivelBar" class="bg-blue-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-4">
+                <div class="text-gray-500 text-sm">Estado bomba</div>
+                <div class="flex items-center gap-2">
+                    <i id="bombaIcon" class="fas fa-power-off text-gray-400 text-2xl"></i>
+                    <span id="bombaTexto" class="text-xl font-semibold">Apagada</span>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-md p-4">
+                <div class="text-gray-500 text-sm">Origen activación</div>
+                <div id="origenContainer" class="flex items-center gap-2">
+                    <i class="fas fa-microchip text-gray-400"></i>
+                    <span id="origenTexto" class="font-medium">---</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tarjeta de ALERTA por desborde (llamativa) -->
+        <div id="desbordeAlert" class="hidden mb-4 rounded-xl p-4 alert-pulse text-white">
+            <div class="flex items-center gap-3">
+                <i class="fas fa-fill-drip text-3xl blink-fast"></i>
+                <div>
+                    <div class="font-bold text-lg">⚠️ DESBORDE INMINENTE ⚠️</div>
+                    <div class="text-sm">Activación automática por nivel alto</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botones de control -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+            <button id="btnOn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-xl shadow transition flex flex-col items-center gap-1">
+                <i class="fas fa-play text-xl"></i>
+                <span class="text-sm">ENCENDER</span>
+            </button>
+            <button id="btnOff" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-xl shadow transition flex flex-col items-center gap-1">
+                <i class="fas fa-stop text-xl"></i>
+                <span class="text-sm">APAGAR</span>
+            </button>
+            <button id="btnReset" class="bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 px-4 rounded-xl shadow transition flex flex-col items-center gap-1">
+                <i class="fas fa-sync-alt text-xl"></i>
+                <span class="text-sm">RESET ESP</span>
+            </button>
+        </div>
+
+        <!-- Estadísticas en caja -->
+        <div class="bg-white rounded-xl shadow-md p-4 mb-4">
+            <h3 class="font-bold text-gray-700 mb-3"><i class="fas fa-chart-line"></i> Estadísticas</h3>
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                    <div class="text-gray-500">Tiempo uso hoy</div>
+                    <div id="tiempoHoy" class="font-mono font-bold">0s</div>
+                </div>
+                <div>
+                    <div class="text-gray-500">Último ciclo</div>
+                    <div id="ultimoCiclo" class="font-mono font-bold">---</div>
+                </div>
+                <div class="col-span-2">
+                    <div class="text-gray-500">Última activación</div>
+                    <div id="ultimaActivacion" class="font-mono">---</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Datos técnicos colapsables -->
+        <div class="bg-gray-50 rounded-xl p-3 text-xs text-gray-500">
+            <details>
+                <summary class="cursor-pointer"><i class="fas fa-microchip"></i> Datos técnicos ESP32</summary>
+                <div id="techData" class="mt-2 space-y-1 font-mono"></div>
+            </details>
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // CONFIGURACIÓN DE TOPICS (según código ESP32)
+        // ============================================================
+        const TOPICS = {
+            command: "bomba/command",
+            status: "bomba/status",
+            config: "bomba/config",
+            telemetry: "bomba/telemetry",
+            alarm: "bomba/alarma"
+        };
+
+        // Variables globales
+        let client = null;
+        let telemetryInterval = null;
+        let reconnectTimer = null;
+
+        // Elementos DOM
+        const loginDiv = document.getElementById('loginScreen');
+        const dashboard = document.getElementById('dashboard');
+        const zonaNombreInput = document.getElementById('zonaNombre');
+        const mqttStatusSpan = document.getElementById('mqttStatus');
+        const horaESPSpan = document.getElementById('horaESP');
+        const nivelTexto = document.getElementById('nivelTexto');
+        const nivelBar = document.getElementById('nivelBar');
+        const bombaIcon = document.getElementById('bombaIcon');
+        const bombaTexto = document.getElementById('bombaTexto');
+        const origenTexto = document.getElementById('origenTexto');
+        const desbordeAlertDiv = document.getElementById('desbordeAlert');
+        const tiempoHoySpan = document.getElementById('tiempoHoy');
+        const ultimoCicloSpan = document.getElementById('ultimoCiclo');
+        const ultimaActivacionSpan = document.getElementById('ultimaActivacion');
+        const techDataDiv = document.getElementById('techData');
+
+        // Guardado en LocalStorage encriptado (simétrico simple)
+        function encryptData(data, password) {
+            // Encriptación simple para evitar texto plano (no es crypto nivel militar)
+            let result = '';
+            for (let i = 0; i < data.length; i++) {
+                result += String.fromCharCode(data.charCodeAt(i) ^ password.charCodeAt(i % password.length));
+            }
+            return btoa(result);
+        }
+        function decryptData(encrypted, password) {
+            try {
+                let decoded = atob(encrypted);
+                let result = '';
+                for (let i = 0; i < decoded.length; i++) {
+                    result += String.fromCharCode(decoded.charCodeAt(i) ^ password.charCodeAt(i % password.length));
+                }
+                return result;
+            } catch(e) { return ''; }
+        }
+
+        function saveCredentials(user, pass) {
+            const key = "mqtt_key_salt";
+            localStorage.setItem('mqtt_user_enc', encryptData(user, key));
+            localStorage.setItem('mqtt_pass_enc', encryptData(pass, key));
+        }
+
+        function loadCredentials() {
+            const key = "mqtt_key_salt";
+            const userEnc = localStorage.getItem('mqtt_user_enc');
+            const passEnc = localStorage.getItem('mqtt_pass_enc');
+            if (userEnc && passEnc) {
+                return {
+                    user: decryptData(userEnc, key),
+                    pass: decryptData(passEnc, key)
+                };
+            }
+            return null;
+        }
+
+        // Conexión MQTT con credenciales
+        function connectToHiveMQ(username, password) {
+            if (client) {
+                try { client.end(true); } catch(e) {}
+            }
+            // Broker HiveMQ pública con WebSockets
+            const brokerUrl = "wss://broker.hivemq.com:8884/mqtt";
+            const options = {
+                username: username,
+                password: password,
+                clientId: "web_" + Math.random().toString(16).substr(2, 8),
+                clean: true,
+                reconnectPeriod: 5000,
+                connectTimeout: 30000
+            };
+            client = mqtt.connect(brokerUrl, options);
+            
+            client.on('connect', () => {
+                console.log('MQTT Conectado');
+                mqttStatusSpan.innerHTML = '<i class="fas fa-check-circle"></i> Conectado';
+                mqttStatusSpan.className = "text-green-600";
+                // Suscribirse a topics que publica el ESP32
+                client.subscribe(TOPICS.status);
+                client.subscribe(TOPICS.telemetry);
+                client.subscribe(TOPICS.alarm);
+                client.subscribe(TOPICS.config);
+                // Solicitar estado inmediato
+                client.publish(TOPICS.command, "STATUS");
+                // Iniciar polling cada 4 segundos para sincronizar
+                if (telemetryInterval) clearInterval(telemetryInterval);
+                telemetryInterval = setInterval(() => {
+                    if (client && client.connected) {
+                        client.publish(TOPICS.command, "STATUS");
+                    }
+                }, 4000);
+            });
+            
+            client.on('message', (topic, message) => {
+                const payload = message.toString();
+                console.log(`📨 ${topic}: ${payload}`);
+                if (topic === TOPICS.telemetry) {
+                    try {
+                        const data = JSON.parse(payload);
+                        updateDashboard(data);
+                    } catch(e) { console.error("JSON error", e); }
+                } else if (topic === TOPICS.status) {
+                    if (payload === "online") mqttStatusSpan.innerHTML = '<i class="fas fa-check-circle"></i> Conectado';
+                    else if (payload === "REINICIANDO") showToast("ESP32 reiniciándose...", "warning");
+                } else if (topic === TOPICS.alarm) {
+                    showToast("🚨 ALARMA: " + payload, "error");
+                }
+            });
+            
+            client.on('error', (err) => {
+                console.error("MQTT error", err);
+                mqttStatusSpan.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Error';
+                mqttStatusSpan.className = "text-red-500";
+            });
+        }
+
+        // Actualizar interfaz con datos del ESP32
+        function updateDashboard(data) {
+            // Nivel
+            const zona = data.zona;
+            let nivelName = "";
+            let nivelPercent = 0;
+            if (zona === 1) { nivelName = "BAJO (seco)"; nivelPercent = 10; }
+            else if (zona === 2) { nivelName = "NORMAL"; nivelPercent = 50; }
+            else if (zona === 3) { nivelName = "ALTO (lleno)"; nivelPercent = 90; }
+            nivelTexto.innerHTML = `<i class="fas fa-tint"></i> ${nivelName}`;
+            nivelBar.style.width = nivelPercent + "%";
+            if (zona === 3 && data.vaciando) nivelBar.className = "bg-red-500 h-2 rounded-full transition-all duration-300";
+            else nivelBar.className = "bg-blue-500 h-2 rounded-full transition-all duration-300";
+            
+            // Bomba
+            const bombaOn = data.bomba;
+            if (bombaOn) {
+                bombaIcon.className = "fas fa-power-off text-green-500 text-2xl";
+                bombaTexto.innerHTML = "ENCENDIDA";
+                bombaTexto.className = "text-xl font-semibold text-green-600";
+            } else {
+                bombaIcon.className = "fas fa-power-off text-gray-400 text-2xl";
+                bombaTexto.innerHTML = "Apagada";
+                bombaTexto.className = "text-xl font-semibold text-gray-600";
+            }
+            
+            // Origen activación
+            if (data.vaciando) {
+                origenTexto.innerHTML = '<i class="fas fa-fill-drip text-red-500"></i> Automático por DESBORDE';
+                desbordeAlertDiv.classList.remove('hidden');
+            } else {
+                desbordeAlertDiv.classList.add('hidden');
+                if (data.porMQTT) origenTexto.innerHTML = '<i class="fas fa-globe text-blue-500"></i> Desde Web / MQTT';
+                else if (data.manual) origenTexto.innerHTML = '<i class="fas fa-toggle-on text-green-500"></i> Interruptor físico';
+                else origenTexto.innerHTML = '<i class="fas fa-microchip text-gray-500"></i> Automático (nivel)';
+            }
+            
+            // Estadísticas
+            if (data.tiempoHoy) tiempoHoySpan.innerHTML = data.tiempoHoy;
+            if (data.ultimoCiclo) ultimoCicloSpan.innerHTML = data.ultimoCiclo;
+            if (data.hora) horaESPSpan.innerHTML = data.hora;
+            ultimaActivacionSpan.innerHTML = data.ultimoEncendido ? new Date(data.ultimoEncendido * 1000).toLocaleTimeString() : "---";
+            
+            // Datos técnicos
+            techDataDiv.innerHTML = `
+                <div><i class="fas fa-microchip"></i> Zona nivel: ${zona}</div>
+                <div><i class="fas fa-lock"></i> Lockout manual: ${data.lockout ? "Activo" : "Inactivo"}</div>
+                <div><i class="fas fa-exclamation-triangle"></i> Inconsistencia: ${data.inconsistencia ? "⚠️ SÍ" : "No"}</div>
+                <div><i class="fas fa-hourglass-half"></i> Tiempo vaciado: ${data.tiempoVaciado || "30"}s</div>
+            `;
+        }
+
+        function showToast(msg, type = "info") {
+            // Toast simple
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-20 left-4 right-4 md:left-auto md:right-4 md:w-80 bg-${type === 'error' ? 'red' : type === 'warning' ? 'yellow' : 'blue'}-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 toast-notify`;
+            toast.innerHTML = `<i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'info-circle'} mr-2"></i> ${msg}`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // Funciones de UI y comandos
+        window.connectAndSave = function() {
+            const user = document.getElementById('mqttUser').value.trim();
+            const pass = document.getElementById('mqttPass').value.trim();
+            if (!user || !pass) {
+                alert("Por favor ingrese usuario y contraseña");
+                return;
+            }
+            saveCredentials(user, pass);
+            connectToHiveMQ(user, pass);
+            loginDiv.classList.add('hidden');
+            dashboard.classList.remove('hidden');
+            // Cargar zona guardada
+            const savedZona = localStorage.getItem('zonaNombre');
+            if (savedZona) zonaNombreInput.value = savedZona;
+            zonaNombreInput.addEventListener('change', () => {
+                localStorage.setItem('zonaNombre', zonaNombreInput.value);
+            });
+        };
+
+        // Botones
+        document.getElementById('btnOn').addEventListener('click', () => {
+            if (client && client.connected) {
+                client.publish(TOPICS.command, "ON");
+                showToast("Comando ENCENDER enviado", "info");
+                document.getElementById('btnOn').classList.add('bg-green-700');
+                setTimeout(() => document.getElementById('btnOn').classList.remove('bg-green-700'), 200);
+            } else showToast("MQTT no conectado", "error");
+        });
+        document.getElementById('btnOff').addEventListener('click', () => {
+            if (client && client.connected) {
+                client.publish(TOPICS.command, "OFF");
+                showToast("Comando APAGAR enviado", "info");
+                document.getElementById('btnOff').classList.add('bg-red-700');
+                setTimeout(() => document.getElementById('btnOff').classList.remove('bg-red-700'), 200);
+            } else showToast("MQTT no conectado", "error");
+        });
+        document.getElementById('btnReset').addEventListener('click', () => {
+            if (confirm("⚠️ ¿Está SEGURO de reiniciar el ESP32? Se detendrá la bomba y se reiniciará el sistema.")) {
+                if (client && client.connected) {
+                    client.publish(TOPICS.command, "REINICIAR");
+                    showToast("Enviando orden de reinicio al ESP32...", "warning");
+                } else showToast("MQTT no conectado", "error");
+            }
+        });
+
+        // Auto-cargar credenciales si existen
+        window.onload = () => {
+            const creds = loadCredentials();
+            if (creds && creds.user && creds.pass) {
+                document.getElementById('mqttUser').value = creds.user;
+                document.getElementById('mqttPass').value = creds.pass;
+                // Opcional: conectar automáticamente
+                // connectAndSave();
+            }
+        };
+    </script>
+</body>
+</html>
