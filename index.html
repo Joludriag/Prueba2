@@ -5,55 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Smart Pump Control | Dashboard</title>
     
-    <!-- FORZAR HTTPS -->
+    <!-- FORCE HTTPS - Seguridad para navegadores -->
     <script>
         if (location.protocol !== 'https:' && location.hostname !== 'localhost' && !location.hostname.includes('127.0.0.1')) {
             location.protocol = 'https:';
         }
     </script>
     
-    <!-- CDNs SIEMPRE con https:// -->
+    <!-- All CDNs use HTTPS for security -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">    
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Smart Pump Control | Professional Dashboard</title>
-    <!-- Usaremos Tailwind CSS desde CDN (la advertencia es solo informativa, no un error) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Librería MQTT que SÍ funciona (mqtt.js) -->
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: { primary: '#1e40af', secondary: '#0f172a', accent: '#06b6d4' }
-                }
-            }
-        }
-    </script>
+    
     <style>
-        @keyframes pulse-red {
-            0%, 100% { background-color: rgba(220, 38, 38, 0.9); }
-            50% { background-color: rgba(185, 28, 28, 1); }
-        }
-        @keyframes blink-fast {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        .alert-pulse { animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse-red { 0%,100%{background-color:rgba(220,38,38,0.9)}50%{background-color:rgba(185,28,28,1)} }
+        @keyframes blink-fast { 0%,100%{opacity:1}50%{opacity:0.3} }
+        .alert-pulse { animation: pulse-red 1s infinite; }
         .blink { animation: blink-fast 0.8s step-end infinite; }
-        .toast-notify { transition: all 0.3s ease; }
+        button:active { transform: scale(0.97); }
         .dashboard-card { transition: transform 0.2s ease; }
         .dashboard-card:hover { transform: translateY(-2px); }
-        button:active { transform: scale(0.97); }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen font-sans antialiased">
 
-    <!-- PANTALLA DE LOGIN / CONFIGURACIÓN INICIAL -->
+    <!-- LOGIN SCREEN -->
     <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
         <div class="bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full p-6 md:p-8 border border-slate-700">
             <div class="text-center mb-6">
@@ -61,29 +37,30 @@
                     <i class="fas fa-water-pump text-3xl text-blue-400"></i>
                 </div>
                 <h1 class="text-2xl font-bold text-white">Smart Pump Control</h1>
-                <p class="text-slate-400 text-sm mt-2">Ingrese sus credenciales de HiveMQ Cloud</p>
+                <p class="text-slate-400 text-sm mt-2">Enter your HiveMQ Cloud credentials</p>
             </div>
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-1">Usuario MQTT</label>
-                    <input type="text" id="mqttUser" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-white" placeholder="usuario_hivemq">
+                    <label class="block text-sm font-medium text-slate-300 mb-1">MQTT Username</label>
+                    <input type="text" id="mqttUser" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white" placeholder="username">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-1">Contraseña MQTT</label>
-                    <input type="password" id="mqttPass" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-white" placeholder="********">
+                    <label class="block text-sm font-medium text-slate-300 mb-1">MQTT Password</label>
+                    <input type="password" id="mqttPass" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white" placeholder="password">
                 </div>
-                <button onclick="connectAndSave()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2">
-                    <i class="fas fa-plug"></i> Conectar a HiveMQ
+                <button onclick="connectAndSave()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition flex items-center justify-center gap-2">
+                    <i class="fas fa-plug"></i> Connect to HiveMQ
                 </button>
             </div>
+            <div id="errorMsg" class="mt-4 text-red-400 text-xs text-center hidden"></div>
             <div class="mt-6 p-3 bg-slate-700/50 rounded-lg border border-slate-600">
-                <p class="text-xs text-slate-400 text-center"><i class="fas fa-shield-alt mr-1"></i> Conexión segura mediante WSS (puerto 8884)</p>
+                <p class="text-xs text-slate-400 text-center"><i class="fas fa-shield-alt mr-1"></i> Secure WSS connection (port 8884)</p>
             </div>
         </div>
     </div>
 
-    <!-- DASHBOARD PRINCIPAL -->
-    <div id="dashboard" class="hidden max-w-6xl mx-auto p-4 pb-24">
+    <!-- MAIN DASHBOARD -->
+    <div id="dashboard" class="hidden max-w-5xl mx-auto p-4 pb-24">
         <!-- Header -->
         <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-4 mb-6 sticky top-4 z-10">
             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -92,14 +69,14 @@
                         <i class="fas fa-microchip text-blue-400 text-xl"></i>
                     </div>
                     <div>
-                        <h2 class="text-white font-bold">Control de Bomba</h2>
+                        <h2 class="text-white font-bold">Pump Controller</h2>
                         <p class="text-xs text-slate-400">ESP32 Industrial</p>
                     </div>
                 </div>
                 <div class="flex items-center gap-4">
                     <div class="flex items-center gap-2 bg-slate-900/50 px-3 py-1.5 rounded-full">
-                        <i class="fas fa-wifi text-green-400 text-sm"></i>
-                        <span id="mqttStatus" class="text-sm text-slate-300">Desconectado</span>
+                        <i id="statusIcon" class="fas fa-wifi text-red-400 text-sm"></i>
+                        <span id="mqttStatus" class="text-sm text-slate-300">Disconnected</span>
                     </div>
                     <div class="flex items-center gap-2 bg-slate-900/50 px-3 py-1.5 rounded-full">
                         <i class="far fa-clock text-slate-400"></i>
@@ -109,107 +86,143 @@
             </div>
         </div>
 
-        <!-- Grid principal -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <!-- Main Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Level Card -->
             <div class="dashboard-card bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <h3 class="text-slate-400 text-sm font-semibold mb-3"><i class="fas fa-tachometer-alt mr-2"></i>Nivel actual</h3>
+                <h3 class="text-slate-400 text-sm font-semibold mb-3"><i class="fas fa-tachometer-alt mr-2"></i>Water Level</h3>
                 <div id="nivelTexto" class="text-3xl font-bold text-white mb-3">---</div>
                 <div class="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
                     <div id="nivelBar" class="bg-gradient-to-r from-blue-500 to-cyan-400 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
                 </div>
             </div>
+            <!-- Pump Status Card -->
             <div class="dashboard-card bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <h3 class="text-slate-400 text-sm font-semibold mb-3"><i class="fas fa-industry mr-2"></i>Estado bomba</h3>
+                <h3 class="text-slate-400 text-sm font-semibold mb-3"><i class="fas fa-industry mr-2"></i>Pump Status</h3>
                 <div class="flex items-baseline gap-2">
                     <i id="bombaIcon" class="fas fa-power-off text-gray-500 text-2xl"></i>
-                    <span id="bombaTexto" class="text-3xl font-bold text-gray-400">Apagada</span>
+                    <span id="bombaTexto" class="text-3xl font-bold text-gray-400">OFF</span>
                 </div>
                 <div class="mt-3 flex items-center gap-2">
                     <i class="fas fa-info-circle text-slate-500"></i>
                     <span id="origenTexto" class="text-slate-400 text-sm">---</span>
                 </div>
             </div>
-            <div class="dashboard-card bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <h3 class="text-slate-400 text-sm font-semibold mb-3"><i class="fas fa-map-marker-alt mr-2"></i>Ubicación</h3>
-                <input type="text" id="zonaNombre" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white font-semibold" value="Sala de Máquinas">
-            </div>
         </div>
 
-        <!-- Alerta desborde -->
+        <!-- Overflow Alert -->
         <div id="desbordeAlert" class="hidden mb-6 rounded-xl p-4 alert-pulse border border-red-500">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center blink">
                     <i class="fas fa-fill-drip text-red-400 text-2xl"></i>
                 </div>
                 <div class="flex-1">
-                    <div class="font-bold text-white text-lg">⚠️ ¡ALERTA DE DESBORDE! ⚠️</div>
-                    <div class="text-sm text-red-200">Activación automática por nivel alto</div>
+                    <div class="font-bold text-white text-lg flex items-center gap-2">
+                        <i class="fas fa-exclamation-triangle text-yellow-400"></i>
+                        ⚠️ OVERFLOW ALERT! ⚠️
+                    </div>
+                    <div class="text-sm text-red-200">Automatic activation due to high water level</div>
                 </div>
             </div>
         </div>
 
-        <!-- Botones -->
+        <!-- Control Buttons -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <button id="btnOn" class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3">
-                <i class="fas fa-play"></i> ENCENDER BOMBA
+            <button id="btnOn" class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 shadow-lg">
+                <i class="fas fa-play"></i> START PUMP
             </button>
-            <button id="btnOff" class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3">
-                <i class="fas fa-stop"></i> APAGAR BOMBA
+            <button id="btnOff" class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 shadow-lg">
+                <i class="fas fa-stop"></i> STOP PUMP
             </button>
-            <button id="btnReset" class="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3">
-                <i class="fas fa-sync-alt"></i> REINICIAR ESP32
+            <button id="btnReset" class="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3 shadow-lg">
+                <i class="fas fa-sync-alt"></i> RESET ESP32
             </button>
         </div>
 
-        <!-- Estadísticas -->
+        <!-- Overflow Timer Configuration -->
+        <div class="bg-slate-800 rounded-xl border border-slate-700 p-5 mb-6">
+            <h3 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+                <i class="fas fa-hourglass-half text-yellow-400"></i>
+                Overflow Timer Configuration
+            </h3>
+            <div class="flex flex-col sm:flex-row gap-4 items-end">
+                <div class="flex-1">
+                    <label class="block text-sm text-slate-400 mb-1">Pump runtime when overflow detected</label>
+                    <div class="flex gap-2 items-center">
+                        <input type="number" id="tiempoVaciadoInput" min="5" max="3600" step="5" 
+                               class="w-32 bg-slate-700 border border-slate-600 rounded-lg px-4 py-2 text-white text-lg font-mono">
+                        <span class="text-slate-400">seconds</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">Range: 5 to 3600 seconds (max 1 hour)</p>
+                </div>
+                <button id="btnSetTime" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-6 py-2 rounded-lg transition flex items-center gap-2">
+                    <i class="fas fa-save"></i> Save Timer
+                </button>
+            </div>
+            <div id="timerStatus" class="mt-3 text-xs text-slate-400 hidden"></div>
+        </div>
+
+        <!-- Statistics & Diagnosis -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Statistics Card -->
             <div class="bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <h3 class="text-slate-300 font-semibold mb-4"><i class="fas fa-chart-line text-blue-400 mr-2"></i>Estadísticas</h3>
+                <h3 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+                    <i class="fas fa-chart-line text-blue-400"></i>
+                    Pump Statistics
+                </h3>
                 <div class="space-y-3">
-                    <div class="flex justify-between p-2 bg-slate-700/50 rounded-lg">
-                        <span class="text-slate-400">Tiempo uso hoy</span>
-                        <span id="tiempoHoy" class="font-mono text-white font-bold">0s</span>
+                    <div class="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <span class="text-slate-400 text-sm">
+                            <i class="fas fa-hourglass-half mr-2 text-yellow-400"></i>Last cycle duration
+                        </span>
+                        <span id="ultimoCiclo" class="font-mono text-white font-bold text-lg">---</span>
                     </div>
-                    <div class="flex justify-between p-2 bg-slate-700/50 rounded-lg">
-                        <span class="text-slate-400">Último ciclo</span>
-                        <span id="ultimoCiclo" class="font-mono text-white">---</span>
-                    </div>
-                    <div class="flex justify-between p-2 bg-slate-700/50 rounded-lg">
-                        <span class="text-slate-400">Última activación</span>
-                        <span id="ultimaActivacion" class="font-mono text-white">---</span>
+                    <div class="flex justify-between items-center p-3 bg-slate-700/50 rounded-lg">
+                        <span class="text-slate-400 text-sm">
+                            <i class="fas fa-sync-alt mr-2 text-green-400"></i>Total runtime since reset
+                        </span>
+                        <span id="tiempoTotalReinicio" class="font-mono text-white font-bold text-lg">---</span>
                     </div>
                 </div>
+                <div class="mt-3 text-xs text-slate-500 text-center border-t border-slate-700 pt-3">
+                    <i class="fas fa-microchip mr-1"></i> Accumulated since last ESP32 reboot
+                </div>
             </div>
+
+            <!-- Diagnostic Card -->
             <div class="bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <h3 class="text-slate-300 font-semibold mb-4"><i class="fas fa-microchip text-purple-400 mr-2"></i>Diagnóstico</h3>
-                <div id="techData" class="space-y-2 text-sm font-mono text-slate-400">Esperando datos...</div>
+                <h3 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
+                    <i class="fas fa-microchip text-purple-400"></i>
+                    System Diagnosis
+                </h3>
+                <div id="techData" class="space-y-2 text-sm font-mono">
+                    <div class="text-slate-400">Waiting for data...</div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
         // ============================================================
-        // CONFIGURACIÓN - ¡CAMBIA ESTA LÍNEA CON LA URL DE TU CLUSTER!
+        // CONFIGURATION - CHANGE THIS LINE WITH YOUR HIVEMQ CLUSTER
         // ============================================================
         const BROKER_URL = "wss://f7ca7d176811475395f22a579b7fe12b.s1.eu.hivemq.cloud:8884/mqtt";
         
-        // Topics configurados en tu ESP32 (NO uses comodín '#', son específicos)
         const TOPICS = {
             command: "bomba/command",
             status: "bomba/status",
-            config: "bomba/config",
             telemetry: "bomba/telemetry",
             alarm: "bomba/alarma"
         };
-
-        // Variables globales
+        
         let client = null;
         let telemetryInterval = null;
-
-        // Elementos DOM
+        
+        // DOM Elements
         const loginDiv = document.getElementById('loginScreen');
         const dashboard = document.getElementById('dashboard');
         const mqttStatusSpan = document.getElementById('mqttStatus');
+        const statusIcon = document.getElementById('statusIcon');
         const horaESPSpan = document.getElementById('horaESP');
         const nivelTexto = document.getElementById('nivelTexto');
         const nivelBar = document.getElementById('nivelBar');
@@ -217,30 +230,53 @@
         const bombaTexto = document.getElementById('bombaTexto');
         const origenTexto = document.getElementById('origenTexto');
         const desbordeAlertDiv = document.getElementById('desbordeAlert');
-        const tiempoHoySpan = document.getElementById('tiempoHoy');
         const ultimoCicloSpan = document.getElementById('ultimoCiclo');
-        const ultimaActivacionSpan = document.getElementById('ultimaActivacion');
+        const tiempoTotalReinicioSpan = document.getElementById('tiempoTotalReinicio');
         const techDataDiv = document.getElementById('techData');
-        const zonaNombreInput = document.getElementById('zonaNombre');
-
-        // Función para mostrar notificaciones
+        const tiempoVaciadoInput = document.getElementById('tiempoVaciadoInput');
+        const btnSetTime = document.getElementById('btnSetTime');
+        const timerStatus = document.getElementById('timerStatus');
+        
         function showToast(msg, type = "info") {
             const toast = document.createElement('div');
             const bgColor = type === 'error' ? 'bg-red-600' : type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600';
-            toast.className = `fixed bottom-6 right-4 left-4 md:left-auto md:right-6 md:w-96 ${bgColor} text-white px-5 py-3 rounded-lg shadow-2xl z-50 toast-notify flex items-center gap-3`;
+            toast.className = `fixed bottom-6 right-4 left-4 md:left-auto md:right-6 md:w-96 ${bgColor} text-white px-5 py-3 rounded-lg shadow-2xl z-50 flex items-center gap-3`;
             toast.innerHTML = `<i class="fas ${type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i><span class="flex-1">${msg}</span>`;
             document.body.appendChild(toast);
             setTimeout(() => toast.remove(), 4000);
         }
-
-        // Función de conexión MQTT usando mqtt.js (la que funciona)
+        
+        function setOverflowTime(seconds) {
+            if (!client || !client.connected) {
+                showToast("❌ Not connected to MQTT", "error");
+                return false;
+            }
+            
+            if (seconds < 5 || seconds > 3600) {
+                showToast("❌ Time must be between 5 and 3600 seconds", "error");
+                return false;
+            }
+            
+            const command = `SET_TIME:${seconds}`;
+            client.publish(TOPICS.command, command);
+            showToast(`⏱️ Overflow timer set to ${seconds} seconds`, "info");
+            
+            timerStatus.classList.remove('hidden');
+            timerStatus.innerHTML = `<i class="fas fa-check-circle text-green-400"></i> Command sent: Pump will run ${seconds}s when overflow is detected`;
+            timerStatus.className = "mt-3 text-xs text-green-400";
+            setTimeout(() => {
+                timerStatus.classList.add('hidden');
+            }, 5000);
+            
+            return true;
+        }
+        
         function connectToHiveMQ(username, password) {
             if (client) {
                 try { client.end(true); } catch(e) {}
             }
             
-            // Client ID dinámico para evitar conflictos con el ESP32
-            const clientId = "Web_" + Math.random().toString(16).substring(2, 10);
+            const clientId = "Web_" + Math.random().toString(16).substring(2, 10) + "_" + Date.now();
             
             const options = {
                 username: username,
@@ -251,149 +287,175 @@
                 connectTimeout: 30000
             };
             
-            client = mqtt.connect(BROKER_URL, options);
-            
-            client.on('connect', () => {
-                console.log('✅ MQTT Conectado');
-                mqttStatusSpan.innerHTML = 'Conectado';
-                mqttStatusSpan.className = "text-green-400 text-sm";
+            try {
+                client = mqtt.connect(BROKER_URL, options);
                 
-                // Suscribirse a los topics que publica el ESP32
-                client.subscribe(TOPICS.status);
-                client.subscribe(TOPICS.telemetry);
-                client.subscribe(TOPICS.alarm);
-                client.subscribe(TOPICS.config);
+                client.on('connect', () => {
+                    console.log("✅ MQTT Connected");
+                    mqttStatusSpan.innerText = "Connected";
+                    statusIcon.className = "fas fa-wifi text-green-400 text-sm";
+                    
+                    client.subscribe(TOPICS.status);
+                    client.subscribe(TOPICS.telemetry);
+                    client.subscribe(TOPICS.alarm);
+                    
+                    client.publish(TOPICS.command, "STATUS");
+                    
+                    if (telemetryInterval) clearInterval(telemetryInterval);
+                    telemetryInterval = setInterval(() => {
+                        if (client && client.connected) {
+                            client.publish(TOPICS.command, "STATUS");
+                        }
+                    }, 5000);
+                    
+                    loginDiv.classList.add('hidden');
+                    dashboard.classList.remove('hidden');
+                    showToast("✅ Connected to HiveMQ Cloud", "info");
+                });
                 
-                // Solicitar estado inmediato
-                client.publish(TOPICS.command, "STATUS");
-                
-                // Iniciar polling cada 4 segundos para mantener datos actualizados
-                if (telemetryInterval) clearInterval(telemetryInterval);
-                telemetryInterval = setInterval(() => {
-                    if (client && client.connected) {
-                        client.publish(TOPICS.command, "STATUS");
+                client.on('message', (topic, message) => {
+                    const payload = message.toString();
+                    console.log(`📨 ${topic}: ${payload}`);
+                    
+                    if (topic === TOPICS.telemetry) {
+                        try {
+                            const data = JSON.parse(payload);
+                            updateDashboard(data);
+                        } catch(e) { console.error("JSON error", e); }
+                    } else if (topic === TOPICS.status) {
+                        if (payload === "REINICIANDO") showToast("🔄 ESP32 restarting...", "warning");
+                    } else if (topic === TOPICS.alarm) {
+                        showToast("🚨 ALARM: " + payload, "error");
                     }
-                }, 4000);
+                });
                 
-                showToast("✅ Conectado a HiveMQ Cloud", "info");
-            });
-            
-            client.on('message', (topic, message) => {
-                const payload = message.toString();
-                console.log(`📨 ${topic}: ${payload}`);
+                client.on('error', (err) => {
+                    console.error("❌ MQTT error", err);
+                    mqttStatusSpan.innerText = "Error";
+                    statusIcon.className = "fas fa-wifi text-red-400 text-sm";
+                    document.getElementById('errorMsg').innerText = "Error: " + err.message;
+                    document.getElementById('errorMsg').classList.remove('hidden');
+                    showToast("Connection error. Check credentials.", "error");
+                });
                 
-                if (topic === TOPICS.telemetry) {
-                    try {
-                        const data = JSON.parse(payload);
-                        updateDashboard(data);
-                    } catch(e) { console.error("JSON error", e); }
-                } else if (topic === TOPICS.status) {
-                    if (payload === "REINICIANDO") showToast("🔄 ESP32 reiniciándose...", "warning");
-                } else if (topic === TOPICS.alarm) {
-                    showToast("🚨 ALARMA: " + payload, "error");
-                }
-            });
-            
-            client.on('error', (err) => {
-                console.error("❌ MQTT error", err);
-                mqttStatusSpan.innerHTML = 'Error';
-                mqttStatusSpan.className = "text-red-400 text-sm";
-                showToast("Error de conexión. Verifica credenciales y URL.", "error");
-            });
-            
-            client.on('close', () => {
-                mqttStatusSpan.innerHTML = 'Desconectado';
-                mqttStatusSpan.className = "text-yellow-400 text-sm";
-            });
+                client.on('close', () => {
+                    mqttStatusSpan.innerText = "Disconnected";
+                    statusIcon.className = "fas fa-wifi text-red-400 text-sm";
+                });
+                
+            } catch(e) {
+                console.error(e);
+                showToast("Connection failed: " + e.message, "error");
+            }
         }
-
-        // Actualizar la interfaz con los datos del ESP32
+        
         function updateDashboard(data) {
-            // Actualizar nivel
+            // Water Level
             const zona = data.zona;
             let nivelName = "", nivelPercent = 0;
-            if (zona === 1) { nivelName = "BAJO (Seco)"; nivelPercent = 10; }
+            if (zona === 1) { nivelName = "LOW (Dry)"; nivelPercent = 10; }
             else if (zona === 2) { nivelName = "NORMAL"; nivelPercent = 50; }
-            else if (zona === 3) { nivelName = "ALTO (Lleno)"; nivelPercent = 90; }
+            else if (zona === 3) { nivelName = "HIGH (Full)"; nivelPercent = 90; }
             nivelTexto.innerHTML = nivelName;
             nivelBar.style.width = nivelPercent + "%";
             
-            // Actualizar bomba
+            // Pump Status
             if (data.bomba) {
                 bombaIcon.className = "fas fa-power-off text-green-500 text-2xl";
-                bombaTexto.innerHTML = "ENCENDIDA";
+                bombaTexto.innerHTML = "RUNNING";
                 bombaTexto.className = "text-3xl font-bold text-green-400";
             } else {
                 bombaIcon.className = "fas fa-power-off text-gray-500 text-2xl";
-                bombaTexto.innerHTML = "Apagada";
+                bombaTexto.innerHTML = "OFF";
                 bombaTexto.className = "text-3xl font-bold text-gray-400";
             }
             
-            // Actualizar origen de activación y alerta de desborde
+            // Activation Source
             if (data.vaciando) {
-                origenTexto.innerHTML = 'Automático por DESBORDE';
+                origenTexto.innerHTML = 'Automatic - OVERFLOW';
                 desbordeAlertDiv.classList.remove('hidden');
             } else {
                 desbordeAlertDiv.classList.add('hidden');
-                if (data.porMQTT) origenTexto.innerHTML = 'Control remoto (Web)';
-                else if (data.manual) origenTexto.innerHTML = 'Interruptor físico';
-                else origenTexto.innerHTML = 'Automático por nivel';
+                if (data.porMQTT) origenTexto.innerHTML = 'Remote control (Web)';
+                else if (data.manual) origenTexto.innerHTML = 'Physical switch';
+                else origenTexto.innerHTML = 'Automatic (level)';
             }
             
-            // Estadísticas
-            if (data.tiempoHoy) tiempoHoySpan.innerHTML = data.tiempoHoy;
+            // Statistics
             if (data.ultimoCiclo) ultimoCicloSpan.innerHTML = data.ultimoCiclo;
+            
+            // Total runtime since reset
+            if (data.tiempoTotalDesdeReinicio) {
+                tiempoTotalReinicioSpan.innerHTML = data.tiempoTotalDesdeReinicio;
+            } else if (data.tiempoTotalBombaAcumulado) {
+                tiempoTotalReinicioSpan.innerHTML = data.tiempoTotalBombaAcumulado;
+            } else {
+                tiempoTotalReinicioSpan.innerHTML = "---";
+            }
+            
+            // ESP32 time
             if (data.hora) horaESPSpan.innerHTML = data.hora;
             
-            // Datos técnicos
+            // Overflow timer value
+            if (data.tiempoVaciado) {
+                tiempoVaciadoInput.value = data.tiempoVaciado;
+            }
+            
+            // Diagnostic data
             techDataDiv.innerHTML = `
-                <div class="flex justify-between"><span>Zona nivel:</span><span class="text-green-400">${zona}</span></div>
-                <div class="flex justify-between"><span>Lockout:</span><span class="${data.lockout ? 'text-red-400' : 'text-green-400'}">${data.lockout ? "Activo" : "Inactivo"}</span></div>
-                <div class="flex justify-between"><span>Inconsistencia:</span><span class="${data.inconsistencia ? 'text-red-400 blink' : 'text-green-400'}">${data.inconsistencia ? "ALERTA" : "Normal"}</span></div>
-                <div class="flex justify-between"><span>Sensor BAJO:</span><span>${data.sensorBajo ? "Activo" : "Inactivo"}</span></div>
-                <div class="flex justify-between"><span>Sensor ALTO:</span><span>${data.sensorAlto ? "Activo" : "Inactivo"}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-400">Level zone:</span><span class="text-green-400">${zona}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-400">Lockout:</span><span class="${data.lockout ? 'text-red-400' : 'text-green-400'}">${data.lockout ? "ACTIVE" : "INACTIVE"}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-400">Sensor inconsistency:</span><span class="${data.inconsistencia ? 'text-red-400 blink' : 'text-green-400'}">${data.inconsistencia ? "ALERT" : "Normal"}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-400">Low sensor:</span><span>${data.sensorBajo ? "Wet" : "Dry"}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-400">High sensor:</span><span>${data.sensorAlto ? "Wet" : "Dry"}</span></div>
+                <div class="flex justify-between py-1"><span class="text-slate-400">Overflow timer:</span><span class="text-cyan-400">${data.tiempoVaciado || 30} seconds</span></div>
             `;
         }
-
-        // Función para enviar comandos al ESP32
+        
         function sendCommand(cmd, successMsg) {
             if (!client || !client.connected) {
-                showToast("❌ No hay conexión MQTT", "error");
+                showToast("❌ No MQTT connection", "error");
                 return false;
             }
             client.publish(TOPICS.command, cmd);
             showToast(successMsg, "info");
             return true;
         }
-
-        // Configurar eventos de los botones
-        document.getElementById('btnOn').addEventListener('click', () => sendCommand("ON", "📤 Comando ENCENDER enviado"));
-        document.getElementById('btnOff').addEventListener('click', () => sendCommand("OFF", "📤 Comando APAGAR enviado"));
+        
+        // Button event listeners
+        document.getElementById('btnOn').addEventListener('click', () => sendCommand("ON", "📤 START command sent"));
+        document.getElementById('btnOff').addEventListener('click', () => sendCommand("OFF", "📤 STOP command sent"));
         document.getElementById('btnReset').addEventListener('click', () => {
-            if (confirm("⚠️ ¿Reiniciar ESP32? Se detendrá la bomba.")) {
-                sendCommand("REINICIAR", "🔄 Enviando reinicio...");
+            if (confirm("⚠️ Are you sure you want to RESTART the ESP32?\n\nThe pump will stop and the system will reboot.")) {
+                sendCommand("REINICIAR", "🔄 Sending restart command to ESP32...");
             }
         });
-
-        // Función global para conectar (llamada desde el botón de login)
+        
+        btnSetTime.addEventListener('click', () => {
+            const seconds = parseInt(tiempoVaciadoInput.value);
+            if (isNaN(seconds)) {
+                showToast("❌ Please enter a valid number", "error");
+                return;
+            }
+            setOverflowTime(seconds);
+        });
+        
         window.connectAndSave = function() {
             const user = document.getElementById('mqttUser').value.trim();
             const pass = document.getElementById('mqttPass').value.trim();
             if (!user || !pass) {
-                alert("Ingrese usuario y contraseña");
+                alert("Please enter username and password");
                 return;
             }
             connectToHiveMQ(user, pass);
-            loginDiv.classList.add('hidden');
-            dashboard.classList.remove('hidden');
-            
-            // Cargar y guardar nombre de zona
-            const savedZona = localStorage.getItem('zonaNombre');
-            if (savedZona) zonaNombreInput.value = savedZona;
-            zonaNombreInput.addEventListener('change', () => {
-                localStorage.setItem('zonaNombre', zonaNombreInput.value);
-            });
         };
+        
+        // Real time clock
+        function actualizarHora() {
+            const ahora = new Date();
+            horaESPSpan.innerHTML = ahora.toLocaleTimeString();
+        }
+        setInterval(actualizarHora, 1000);
     </script>
 </body>
 </html>
