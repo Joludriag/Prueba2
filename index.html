@@ -4,68 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Smart Pump Control | Professional Dashboard</title>
-    <!-- Tailwind CSS CDN -->
+    <!-- Usaremos Tailwind CSS desde CDN (la advertencia es solo informativa, no un error) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Paho MQTT library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/mqttws31.min.js"></script>
+    <!-- Librería MQTT que SÍ funciona (mqtt.js) -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <!-- Font Awesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <!-- Custom config for Tailwind (dark theme default) -->
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
-                    colors: {
-                        primary: '#1e40af',
-                        secondary: '#0f172a',
-                        accent: '#06b6d4',
-                        danger: '#dc2626',
-                        success: '#10b981',
-                        warning: '#f59e0b'
-                    }
+                    colors: { primary: '#1e40af', secondary: '#0f172a', accent: '#06b6d4' }
                 }
             }
         }
     </script>
     <style>
-        /* Custom styles for alerts and animations */
         @keyframes pulse-red {
-            0%, 100% { background-color: rgba(220, 38, 38, 0.9); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
-            50% { background-color: rgba(185, 28, 28, 1); box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+            0%, 100% { background-color: rgba(220, 38, 38, 0.9); }
+            50% { background-color: rgba(185, 28, 28, 1); }
         }
         @keyframes blink-fast {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.3; }
         }
-        @keyframes slide-in {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        .alert-pulse {
-            animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        .blink {
-            animation: blink-fast 0.8s step-end infinite;
-        }
-        .toast-notify {
-            animation: slide-in 0.3s ease-out;
-        }
-        .dashboard-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .dashboard-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-        button:active {
-            transform: scale(0.97);
-        }
-        /* Scrollbar personalizado */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .alert-pulse { animation: pulse-red 1s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        .blink { animation: blink-fast 0.8s step-end infinite; }
+        .toast-notify { transition: all 0.3s ease; }
+        .dashboard-card { transition: transform 0.2s ease; }
+        .dashboard-card:hover { transform: translateY(-2px); }
+        button:active { transform: scale(0.97); }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 min-h-screen font-sans antialiased">
@@ -80,38 +48,29 @@
                 <h1 class="text-2xl font-bold text-white">Smart Pump Control</h1>
                 <p class="text-slate-400 text-sm mt-2">Ingrese sus credenciales de HiveMQ Cloud</p>
             </div>
-            
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-1">
-                        <i class="fas fa-user mr-2"></i>Usuario MQTT
-                    </label>
-                    <input type="text" id="mqttUser" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400" placeholder="usuario_hivemq">
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Usuario MQTT</label>
+                    <input type="text" id="mqttUser" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-white" placeholder="usuario_hivemq">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-300 mb-1">
-                        <i class="fas fa-lock mr-2"></i>Contraseña MQTT
-                    </label>
-                    <input type="password" id="mqttPass" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400" placeholder="********">
+                    <label class="block text-sm font-medium text-slate-300 mb-1">Contraseña MQTT</label>
+                    <input type="password" id="mqttPass" class="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-white" placeholder="********">
                 </div>
-                <button onclick="connectAndSave()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg transition duration-200 flex items-center justify-center gap-2 shadow-lg">
+                <button onclick="connectAndSave()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-4 rounded-lg transition flex items-center justify-center gap-2">
                     <i class="fas fa-plug"></i> Conectar a HiveMQ
                 </button>
             </div>
-            
             <div class="mt-6 p-3 bg-slate-700/50 rounded-lg border border-slate-600">
-                <p class="text-xs text-slate-400 text-center">
-                    <i class="fas fa-shield-alt mr-1"></i> 
-                    Las credenciales no se almacenan. La conexión es segura mediante WSS (puerto 8884).
-                </p>
+                <p class="text-xs text-slate-400 text-center"><i class="fas fa-shield-alt mr-1"></i> Conexión segura mediante WSS (puerto 8884)</p>
             </div>
         </div>
     </div>
 
     <!-- DASHBOARD PRINCIPAL -->
     <div id="dashboard" class="hidden max-w-6xl mx-auto p-4 pb-24">
-        <!-- Header con estado de conexión -->
-        <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-4 mb-6 sticky top-4 z-10 shadow-lg">
+        <!-- Header -->
+        <div class="bg-slate-800/50 backdrop-blur-sm rounded-xl border border-slate-700 p-4 mb-6 sticky top-4 z-10">
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
@@ -137,134 +96,89 @@
 
         <!-- Grid principal -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <!-- Tarjeta de Nivel -->
             <div class="dashboard-card bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-slate-400 text-sm font-semibold uppercase tracking-wider">
-                        <i class="fas fa-tachometer-alt mr-2"></i>Nivel actual
-                    </h3>
-                    <i class="fas fa-water text-blue-400 text-xl"></i>
-                </div>
+                <h3 class="text-slate-400 text-sm font-semibold mb-3"><i class="fas fa-tachometer-alt mr-2"></i>Nivel actual</h3>
                 <div id="nivelTexto" class="text-3xl font-bold text-white mb-3">---</div>
                 <div class="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
                     <div id="nivelBar" class="bg-gradient-to-r from-blue-500 to-cyan-400 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
                 </div>
-                <div class="mt-3 flex justify-between text-xs text-slate-500">
-                    <span>Seco</span>
-                    <span>Normal</span>
-                    <span>Lleno</span>
-                </div>
             </div>
-
-            <!-- Tarjeta de Bomba -->
             <div class="dashboard-card bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-slate-400 text-sm font-semibold uppercase tracking-wider">
-                        <i class="fas fa-industry mr-2"></i>Estado bomba
-                    </h3>
-                    <i id="bombaIcon" class="fas fa-power-off text-gray-500 text-xl"></i>
-                </div>
+                <h3 class="text-slate-400 text-sm font-semibold mb-3"><i class="fas fa-industry mr-2"></i>Estado bomba</h3>
                 <div class="flex items-baseline gap-2">
+                    <i id="bombaIcon" class="fas fa-power-off text-gray-500 text-2xl"></i>
                     <span id="bombaTexto" class="text-3xl font-bold text-gray-400">Apagada</span>
                 </div>
-                <div id="origenContainer" class="mt-3 flex items-center gap-2 text-sm">
+                <div class="mt-3 flex items-center gap-2">
                     <i class="fas fa-info-circle text-slate-500"></i>
-                    <span id="origenTexto" class="text-slate-400">---</span>
+                    <span id="origenTexto" class="text-slate-400 text-sm">---</span>
                 </div>
             </div>
-
-            <!-- Tarjeta de Zona -->
             <div class="dashboard-card bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-slate-400 text-sm font-semibold uppercase tracking-wider">
-                        <i class="fas fa-map-marker-alt mr-2"></i>Ubicación
-                    </h3>
-                    <i class="fas fa-pen text-slate-500 text-sm cursor-pointer hover:text-blue-400" onclick="editarZona()"></i>
-                </div>
-                <input type="text" id="zonaNombre" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white font-semibold text-lg focus:ring-2 focus:ring-blue-500" value="Sala de Máquinas">
-                <p class="text-xs text-slate-500 mt-2">
-                    <i class="fas fa-sync-alt mr-1"></i> Click en el lápiz para editar
-                </p>
+                <h3 class="text-slate-400 text-sm font-semibold mb-3"><i class="fas fa-map-marker-alt mr-2"></i>Ubicación</h3>
+                <input type="text" id="zonaNombre" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white font-semibold" value="Sala de Máquinas">
             </div>
         </div>
 
-        <!-- Alerta de desborde (llamativa) -->
+        <!-- Alerta desborde -->
         <div id="desbordeAlert" class="hidden mb-6 rounded-xl p-4 alert-pulse border border-red-500">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center blink">
                     <i class="fas fa-fill-drip text-red-400 text-2xl"></i>
                 </div>
                 <div class="flex-1">
-                    <div class="font-bold text-white text-lg flex items-center gap-2">
-                        <i class="fas fa-exclamation-triangle text-yellow-400"></i>
-                        ¡ALERTA DE DESBORDE!
-                    </div>
-                    <div class="text-sm text-red-200">Activación automática por nivel alto - Bomba en marcha</div>
+                    <div class="font-bold text-white text-lg">⚠️ ¡ALERTA DE DESBORDE! ⚠️</div>
+                    <div class="text-sm text-red-200">Activación automática por nivel alto</div>
                 </div>
-                <i class="fas fa-robot text-red-500 text-3xl blink"></i>
             </div>
         </div>
 
-        <!-- Botones de control -->
+        <!-- Botones -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <button id="btnOn" class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition flex items-center justify-center gap-3 group">
-                <i class="fas fa-play text-xl group-active:scale-90 transition"></i>
-                <span class="text-lg">ENCENDER BOMBA</span>
+            <button id="btnOn" class="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3">
+                <i class="fas fa-play"></i> ENCENDER BOMBA
             </button>
-            <button id="btnOff" class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition flex items-center justify-center gap-3 group">
-                <i class="fas fa-stop text-xl group-active:scale-90 transition"></i>
-                <span class="text-lg">APAGAR BOMBA</span>
+            <button id="btnOff" class="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3">
+                <i class="fas fa-stop"></i> APAGAR BOMBA
             </button>
-            <button id="btnReset" class="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-4 px-6 rounded-xl shadow-lg transition flex items-center justify-center gap-3 group">
-                <i class="fas fa-sync-alt text-xl group-active:scale-90 transition"></i>
-                <span class="text-lg">REINICIAR ESP32</span>
+            <button id="btnReset" class="bg-gradient-to-r from-yellow-600 to-yellow-700 hover:from-yellow-700 hover:to-yellow-800 text-white font-bold py-4 rounded-xl transition flex items-center justify-center gap-3">
+                <i class="fas fa-sync-alt"></i> REINICIAR ESP32
             </button>
         </div>
 
-        <!-- Estadísticas y datos técnicos -->
+        <!-- Estadísticas -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <h3 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
-                    <i class="fas fa-chart-line text-blue-400"></i>
-                    Estadísticas operativas
-                </h3>
+                <h3 class="text-slate-300 font-semibold mb-4"><i class="fas fa-chart-line text-blue-400 mr-2"></i>Estadísticas</h3>
                 <div class="space-y-3">
-                    <div class="flex justify-between items-center p-2 bg-slate-700/50 rounded-lg">
-                        <span class="text-slate-400 text-sm"><i class="far fa-clock mr-2"></i>Tiempo uso hoy</span>
+                    <div class="flex justify-between p-2 bg-slate-700/50 rounded-lg">
+                        <span class="text-slate-400">Tiempo uso hoy</span>
                         <span id="tiempoHoy" class="font-mono text-white font-bold">0s</span>
                     </div>
-                    <div class="flex justify-between items-center p-2 bg-slate-700/50 rounded-lg">
-                        <span class="text-slate-400 text-sm"><i class="fas fa-history mr-2"></i>Último ciclo</span>
-                        <span id="ultimoCiclo" class="font-mono text-white font-bold">---</span>
+                    <div class="flex justify-between p-2 bg-slate-700/50 rounded-lg">
+                        <span class="text-slate-400">Último ciclo</span>
+                        <span id="ultimoCiclo" class="font-mono text-white">---</span>
                     </div>
-                    <div class="flex justify-between items-center p-2 bg-slate-700/50 rounded-lg">
-                        <span class="text-slate-400 text-sm"><i class="fas fa-calendar-alt mr-2"></i>Última activación</span>
+                    <div class="flex justify-between p-2 bg-slate-700/50 rounded-lg">
+                        <span class="text-slate-400">Última activación</span>
                         <span id="ultimaActivacion" class="font-mono text-white">---</span>
                     </div>
                 </div>
             </div>
-
             <div class="bg-slate-800 rounded-xl border border-slate-700 p-5">
-                <h3 class="text-slate-300 font-semibold mb-4 flex items-center gap-2">
-                    <i class="fas fa-microchip text-purple-400"></i>
-                    Diagnóstico ESP32
-                </h3>
-                <div id="techData" class="space-y-2 text-sm font-mono">
-                    <div class="text-slate-400">Esperando datos...</div>
-                </div>
+                <h3 class="text-slate-300 font-semibold mb-4"><i class="fas fa-microchip text-purple-400 mr-2"></i>Diagnóstico</h3>
+                <div id="techData" class="space-y-2 text-sm font-mono text-slate-400">Esperando datos...</div>
             </div>
         </div>
     </div>
 
     <script>
         // ============================================================
-        // CONFIGURACIÓN MQTT (según main.cpp del ESP32)
+        // CONFIGURACIÓN - ¡CAMBIA ESTA LÍNEA CON LA URL DE TU CLUSTER!
         // ============================================================
-        // 🔧 CAMBIA ESTA LÍNEA con la dirección de TU CLUSTER de HiveMQ Cloud
-        const MQTT_HOST = "f7ca7d176811475395f22a579b7fe12b.s1.eu.hivemq.cloud";  // ← REEMPLAZAR
-        const MQTT_PORT = 8884;
-        const MQTT_PATH = "/mqtt";
+        const BROKER_URL = "f7ca7d176811475395f22a579b7fe12b.s1.eu.hivemq.cloud";
         
+        // Topics configurados en tu ESP32 (NO uses comodín '#', son específicos)
         const TOPICS = {
             command: "bomba/command",
             status: "bomba/status",
@@ -276,11 +190,10 @@
         // Variables globales
         let client = null;
         let telemetryInterval = null;
-        
+
         // Elementos DOM
         const loginDiv = document.getElementById('loginScreen');
         const dashboard = document.getElementById('dashboard');
-        const zonaNombreInput = document.getElementById('zonaNombre');
         const mqttStatusSpan = document.getElementById('mqttStatus');
         const horaESPSpan = document.getElementById('horaESP');
         const nivelTexto = document.getElementById('nivelTexto');
@@ -293,236 +206,178 @@
         const ultimoCicloSpan = document.getElementById('ultimoCiclo');
         const ultimaActivacionSpan = document.getElementById('ultimaActivacion');
         const techDataDiv = document.getElementById('techData');
+        const zonaNombreInput = document.getElementById('zonaNombre');
 
-        // Función para mostrar notificaciones tipo toast
+        // Función para mostrar notificaciones
         function showToast(msg, type = "info") {
             const toast = document.createElement('div');
             const bgColor = type === 'error' ? 'bg-red-600' : type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600';
             toast.className = `fixed bottom-6 right-4 left-4 md:left-auto md:right-6 md:w-96 ${bgColor} text-white px-5 py-3 rounded-lg shadow-2xl z-50 toast-notify flex items-center gap-3`;
-            const icon = type === 'error' ? 'fa-exclamation-triangle' : type === 'warning' ? 'fa-clock' : 'fa-info-circle';
-            toast.innerHTML = `<i class="fas ${icon} text-xl"></i><span class="flex-1">${msg}</span><i class="fas fa-times cursor-pointer hover:opacity-70" onclick="this.parentElement.remove()"></i>`;
+            toast.innerHTML = `<i class="fas ${type === 'error' ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i><span class="flex-1">${msg}</span>`;
             document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 5000);
+            setTimeout(() => toast.remove(), 4000);
         }
 
-        // Conexión MQTT siguiendo las consideraciones técnicas
+        // Función de conexión MQTT usando mqtt.js (la que funciona)
         function connectToHiveMQ(username, password) {
             if (client) {
-                try { client.disconnect(); } catch(e) {}
+                try { client.end(true); } catch(e) {}
             }
             
-            // ✅ CONSIDERACIÓN 1: Client ID dinámico y aleatorio
-            const clientId = "Web_" + Math.random().toString(16).substring(2, 10) + "_" + Date.now();
+            // Client ID dinámico para evitar conflictos con el ESP32
+            const clientId = "Web_" + Math.random().toString(16).substring(2, 10);
             
-            // ✅ CONSIDERACIÓN 2: Parámetros estrictos: Host, Puerto, Path
-            client = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT, MQTT_PATH, clientId);
-            
-            // ✅ CONSIDERACIÓN 3: Forzar SSL (useSSL: true)
             const options = {
-                userName: username,
+                username: username,
                 password: password,
-                useSSL: true,
-                cleanSession: true,
-                reconnect: true,
-                reconnectInterval: 5000,
-                timeout: 30,
-                keepAliveInterval: 60,
-                onSuccess: onConnectSuccess,
-                onFailure: onConnectFailure
+                clientId: clientId,
+                clean: true,
+                reconnectPeriod: 5000,
+                connectTimeout: 30000
             };
             
-            client.connect(options);
+            client = mqtt.connect(BROKER_URL, options);
             
-            client.onConnectionLost = onConnectionLost;
-            client.onMessageArrived = onMessageArrived;
-        }
-        
-        function onConnectSuccess() {
-            console.log("✅ MQTT Conectado exitosamente");
-            mqttStatusSpan.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Conectado';
-            mqttStatusSpan.className = "text-green-400 text-sm";
+            client.on('connect', () => {
+                console.log('✅ MQTT Conectado');
+                mqttStatusSpan.innerHTML = 'Conectado';
+                mqttStatusSpan.className = "text-green-400 text-sm";
+                
+                // Suscribirse a los topics que publica el ESP32
+                client.subscribe(TOPICS.status);
+                client.subscribe(TOPICS.telemetry);
+                client.subscribe(TOPICS.alarm);
+                client.subscribe(TOPICS.config);
+                
+                // Solicitar estado inmediato
+                client.publish(TOPICS.command, "STATUS");
+                
+                // Iniciar polling cada 4 segundos para mantener datos actualizados
+                if (telemetryInterval) clearInterval(telemetryInterval);
+                telemetryInterval = setInterval(() => {
+                    if (client && client.connected) {
+                        client.publish(TOPICS.command, "STATUS");
+                    }
+                }, 4000);
+                
+                showToast("✅ Conectado a HiveMQ Cloud", "info");
+            });
             
-            // Suscribirse a los topics que publica el ESP32
-            client.subscribe(TOPICS.status);
-            client.subscribe(TOPICS.telemetry);
-            client.subscribe(TOPICS.alarm);
-            client.subscribe(TOPICS.config);
-            
-            // Solicitar estado inmediato
-            const message = new Paho.MQTT.Message("STATUS");
-            message.destinationName = TOPICS.command;
-            client.send(message);
-            
-            // Iniciar polling cada 4 segundos
-            if (telemetryInterval) clearInterval(telemetryInterval);
-            telemetryInterval = setInterval(() => {
-                if (client && client.isConnected()) {
-                    const msg = new Paho.MQTT.Message("STATUS");
-                    msg.destinationName = TOPICS.command;
-                    client.send(msg);
+            client.on('message', (topic, message) => {
+                const payload = message.toString();
+                console.log(`📨 ${topic}: ${payload}`);
+                
+                if (topic === TOPICS.telemetry) {
+                    try {
+                        const data = JSON.parse(payload);
+                        updateDashboard(data);
+                    } catch(e) { console.error("JSON error", e); }
+                } else if (topic === TOPICS.status) {
+                    if (payload === "REINICIANDO") showToast("🔄 ESP32 reiniciándose...", "warning");
+                } else if (topic === TOPICS.alarm) {
+                    showToast("🚨 ALARMA: " + payload, "error");
                 }
-            }, 4000);
+            });
             
-            showToast("✅ Conectado a HiveMQ Cloud", "info");
-        }
-        
-        function onConnectFailure(err) {
-            console.error("❌ Error MQTT:", err);
-            mqttStatusSpan.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Error conexión';
-            mqttStatusSpan.className = "text-red-400 text-sm";
-            showToast("❌ Error de conexión: " + (err.errorMessage || "Verifica credenciales"), "error");
-        }
-        
-        function onConnectionLost(response) {
-            console.log("⚠️ Conexión perdida", response);
-            mqttStatusSpan.innerHTML = '<i class="fas fa-plug mr-1"></i> Reconectando...';
-            mqttStatusSpan.className = "text-yellow-400 text-sm";
-        }
-        
-        function onMessageArrived(message) {
-            const topic = message.destinationName;
-            const payload = message.payloadString;
-            console.log(`📨 ${topic}: ${payload}`);
+            client.on('error', (err) => {
+                console.error("❌ MQTT error", err);
+                mqttStatusSpan.innerHTML = 'Error';
+                mqttStatusSpan.className = "text-red-400 text-sm";
+                showToast("Error de conexión. Verifica credenciales y URL.", "error");
+            });
             
-            if (topic === TOPICS.telemetry) {
-                try {
-                    const data = JSON.parse(payload);
-                    updateDashboard(data);
-                } catch(e) { console.error("JSON parse error", e); }
-            } else if (topic === TOPICS.status) {
-                if (payload === "online") {
-                    mqttStatusSpan.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Conectado';
-                    mqttStatusSpan.className = "text-green-400 text-sm";
-                } else if (payload === "REINICIANDO") {
-                    showToast("🔄 ESP32 reiniciándose...", "warning");
-                }
-            } else if (topic === TOPICS.alarm) {
-                showToast("🚨 ALARMA: " + payload, "error");
-            }
+            client.on('close', () => {
+                mqttStatusSpan.innerHTML = 'Desconectado';
+                mqttStatusSpan.className = "text-yellow-400 text-sm";
+            });
         }
-        
-        // Actualizar interfaz con datos del ESP32
+
+        // Actualizar la interfaz con los datos del ESP32
         function updateDashboard(data) {
-            // Nivel
+            // Actualizar nivel
             const zona = data.zona;
-            let nivelName = "";
-            let nivelPercent = 0;
+            let nivelName = "", nivelPercent = 0;
             if (zona === 1) { nivelName = "BAJO (Seco)"; nivelPercent = 10; }
             else if (zona === 2) { nivelName = "NORMAL"; nivelPercent = 50; }
             else if (zona === 3) { nivelName = "ALTO (Lleno)"; nivelPercent = 90; }
-            nivelTexto.innerHTML = `<i class="fas fa-tint text-blue-400 mr-2"></i>${nivelName}`;
+            nivelTexto.innerHTML = nivelName;
             nivelBar.style.width = nivelPercent + "%";
-            if (zona === 3 && data.vaciando) {
-                nivelBar.className = "bg-gradient-to-r from-red-500 to-orange-500 h-3 rounded-full transition-all duration-500";
-            } else {
-                nivelBar.className = "bg-gradient-to-r from-blue-500 to-cyan-400 h-3 rounded-full transition-all duration-500";
-            }
             
-            // Bomba
-            const bombaOn = data.bomba;
-            if (bombaOn) {
-                bombaIcon.className = "fas fa-power-off text-green-500 text-xl";
+            // Actualizar bomba
+            if (data.bomba) {
+                bombaIcon.className = "fas fa-power-off text-green-500 text-2xl";
                 bombaTexto.innerHTML = "ENCENDIDA";
                 bombaTexto.className = "text-3xl font-bold text-green-400";
             } else {
-                bombaIcon.className = "fas fa-power-off text-gray-500 text-xl";
+                bombaIcon.className = "fas fa-power-off text-gray-500 text-2xl";
                 bombaTexto.innerHTML = "Apagada";
                 bombaTexto.className = "text-3xl font-bold text-gray-400";
             }
             
-            // Origen activación
+            // Actualizar origen de activación y alerta de desborde
             if (data.vaciando) {
-                origenTexto.innerHTML = '<i class="fas fa-fill-drip text-red-400 mr-1"></i> Automático por DESBORDE';
+                origenTexto.innerHTML = 'Automático por DESBORDE';
                 desbordeAlertDiv.classList.remove('hidden');
             } else {
                 desbordeAlertDiv.classList.add('hidden');
-                if (data.porMQTT) origenTexto.innerHTML = '<i class="fas fa-globe text-blue-400 mr-1"></i> Control remoto (Web/App)';
-                else if (data.manual) origenTexto.innerHTML = '<i class="fas fa-toggle-on text-green-400 mr-1"></i> Interruptor físico';
-                else origenTexto.innerHTML = '<i class="fas fa-microchip text-slate-400 mr-1"></i> Automático por nivel';
+                if (data.porMQTT) origenTexto.innerHTML = 'Control remoto (Web)';
+                else if (data.manual) origenTexto.innerHTML = 'Interruptor físico';
+                else origenTexto.innerHTML = 'Automático por nivel';
             }
             
             // Estadísticas
             if (data.tiempoHoy) tiempoHoySpan.innerHTML = data.tiempoHoy;
             if (data.ultimoCiclo) ultimoCicloSpan.innerHTML = data.ultimoCiclo;
             if (data.hora) horaESPSpan.innerHTML = data.hora;
-            ultimaActivacionSpan.innerHTML = data.ultimoEncendido ? new Date(data.ultimoEncendido * 1000).toLocaleTimeString() : "---";
             
             // Datos técnicos
             techDataDiv.innerHTML = `
-                <div class="flex justify-between p-1"><span class="text-slate-400">Zona nivel:</span><span class="text-green-400">${zona}</span></div>
-                <div class="flex justify-between p-1"><span class="text-slate-400">Lockout manual:</span><span class="${data.lockout ? 'text-red-400' : 'text-green-400'}">${data.lockout ? "Activo" : "Inactivo"}</span></div>
-                <div class="flex justify-between p-1"><span class="text-slate-400">Inconsistencia sensores:</span><span class="${data.inconsistencia ? 'text-red-400 blink' : 'text-green-400'}">${data.inconsistencia ? "⚠️ ALERTA" : "Normal"}</span></div>
-                <div class="flex justify-between p-1"><span class="text-slate-400">Tiempo vaciado:</span><span class="text-cyan-400">${data.tiempoVaciado || 30}s</span></div>
-                <div class="flex justify-between p-1"><span class="text-slate-400">Sensor BAJO:</span><span class="${data.sensorBajo ? 'text-green-400' : 'text-yellow-400'}">${data.sensorBajo ? "Activo (Agua)" : "Inactivo (Seco)"}</span></div>
-                <div class="flex justify-between p-1"><span class="text-slate-400">Sensor ALTO:</span><span class="${data.sensorAlto ? 'text-green-400' : 'text-yellow-400'}">${data.sensorAlto ? "Activo (Lleno)" : "Inactivo"}</span></div>
+                <div class="flex justify-between"><span>Zona nivel:</span><span class="text-green-400">${zona}</span></div>
+                <div class="flex justify-between"><span>Lockout:</span><span class="${data.lockout ? 'text-red-400' : 'text-green-400'}">${data.lockout ? "Activo" : "Inactivo"}</span></div>
+                <div class="flex justify-between"><span>Inconsistencia:</span><span class="${data.inconsistencia ? 'text-red-400 blink' : 'text-green-400'}">${data.inconsistencia ? "ALERTA" : "Normal"}</span></div>
+                <div class="flex justify-between"><span>Sensor BAJO:</span><span>${data.sensorBajo ? "Activo" : "Inactivo"}</span></div>
+                <div class="flex justify-between"><span>Sensor ALTO:</span><span>${data.sensorAlto ? "Activo" : "Inactivo"}</span></div>
             `;
         }
-        
-        function editarZona() {
-            zonaNombreInput.focus();
-            showToast("✏️ Edita el nombre de la zona", "info");
-        }
-        
-        // Botones de control
+
+        // Función para enviar comandos al ESP32
         function sendCommand(cmd, successMsg) {
-            if (!client || !client.isConnected()) {
-                showToast("❌ No hay conexión MQTT activa", "error");
+            if (!client || !client.connected) {
+                showToast("❌ No hay conexión MQTT", "error");
                 return false;
             }
-            const message = new Paho.MQTT.Message(cmd);
-            message.destinationName = TOPICS.command;
-            client.send(message);
+            client.publish(TOPICS.command, cmd);
             showToast(successMsg, "info");
             return true;
         }
-        
-        // Event listeners
-        document.getElementById('btnOn').addEventListener('click', () => {
-            if (sendCommand("ON", "📤 Comando ENCENDER enviado")) {
-                document.getElementById('btnOn').classList.add('scale-95');
-                setTimeout(() => document.getElementById('btnOn').classList.remove('scale-95'), 200);
-            }
-        });
-        
-        document.getElementById('btnOff').addEventListener('click', () => {
-            if (sendCommand("OFF", "📤 Comando APAGAR enviado")) {
-                document.getElementById('btnOff').classList.add('scale-95');
-                setTimeout(() => document.getElementById('btnOff').classList.remove('scale-95'), 200);
-            }
-        });
-        
+
+        // Configurar eventos de los botones
+        document.getElementById('btnOn').addEventListener('click', () => sendCommand("ON", "📤 Comando ENCENDER enviado"));
+        document.getElementById('btnOff').addEventListener('click', () => sendCommand("OFF", "📤 Comando APAGAR enviado"));
         document.getElementById('btnReset').addEventListener('click', () => {
-            if (confirm("⚠️ ¿Está SEGURO de reiniciar el ESP32?\n\nSe detendrá la bomba y se reiniciará el sistema. Esta acción no se puede deshacer.")) {
-                sendCommand("REINICIAR", "🔄 Enviando orden de reinicio al ESP32...");
+            if (confirm("⚠️ ¿Reiniciar ESP32? Se detendrá la bomba.")) {
+                sendCommand("REINICIAR", "🔄 Enviando reinicio...");
             }
         });
-        
-        // Guardar zona en localStorage
-        zonaNombreInput.addEventListener('change', () => {
-            localStorage.setItem('zonaNombre', zonaNombreInput.value);
-        });
-        
-        // Conectar y guardar credenciales (sin almacenamiento persistente por seguridad)
+
+        // Función global para conectar (llamada desde el botón de login)
         window.connectAndSave = function() {
             const user = document.getElementById('mqttUser').value.trim();
             const pass = document.getElementById('mqttPass').value.trim();
             if (!user || !pass) {
-                alert("❌ Por favor ingrese usuario y contraseña");
+                alert("Ingrese usuario y contraseña");
                 return;
             }
-            // No almacenamos credenciales en localStorage por seguridad
             connectToHiveMQ(user, pass);
             loginDiv.classList.add('hidden');
             dashboard.classList.remove('hidden');
             
-            // Recuperar nombre de zona guardado
+            // Cargar y guardar nombre de zona
             const savedZona = localStorage.getItem('zonaNombre');
             if (savedZona) zonaNombreInput.value = savedZona;
-        };
-        
-        // Inicialización
-        window.onload = () => {
-            console.log("Dashboard listo. Configuración MQTT:", MQTT_HOST, MQTT_PORT, MQTT_PATH);
+            zonaNombreInput.addEventListener('change', () => {
+                localStorage.setItem('zonaNombre', zonaNombreInput.value);
+            });
         };
     </script>
 </body>
